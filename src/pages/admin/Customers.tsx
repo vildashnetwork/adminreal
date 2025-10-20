@@ -15,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const API_BASE = "http://localhost:1200";
+const API_BASE = "https://realdealbackend.onrender.com";
 
 const Customers = () => {
   const [customers, setCustomers] = useState([]);
