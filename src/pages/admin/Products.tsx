@@ -44,7 +44,7 @@ const Products = () => {
   const loadProducts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:1200/add');
+      const res = await axios.get('https://realdealbackend.onrender.com/add');
       if (res.status === 200) {
         setProducts(res.data.fishingTools || []);
       }
@@ -63,7 +63,7 @@ const Products = () => {
   // ✅ Delete product by ID
   const handleDelete = async (id: string) => {
     try {
-      await axios.delete(`http://localhost:1200/add/${id}`);
+      await axios.delete(`https://realdealbackend.onrender.com/add/${id}`);
       setProducts((prev) => prev.filter((p) => p._id !== id));
       toast.success('Product deleted successfully');
     } catch (err) {
