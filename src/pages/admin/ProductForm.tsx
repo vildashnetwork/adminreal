@@ -1,3 +1,4 @@
+// src/pages/ProductForm.tsx
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import AdminLayout from "@/components/admin/AdminLayout";
@@ -6,8 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Upload } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Upload, Trash2, Check } from "lucide-react";
 import axios from "axios";
 import { toast } from "sonner";
 
@@ -16,7 +23,24 @@ const ProductForm = () => {
   const navigate = useNavigate();
   const isEdit = !!id;
 
-  const [formData, setFormData] = useState({
+  type FormState = {
+    ProductName: string;
+    SKU: string;
+    Description: string;
+    Specifications: string;
+    Price: string;
+    CompareatPrice: string;
+    Weight: string;
+    Category: string;
+    StockQuantity: string;
+    img2: string;
+    img3: string; // main image
+    img4: string;
+    img5: string;
+    img6: string;
+  };
+
+  const [formData, setFormData] = useState<FormState>({
     ProductName: "",
     SKU: "",
     Description: "",
@@ -26,18 +50,23 @@ const ProductForm = () => {
     Weight: "",
     Category: "",
     StockQuantity: "",
+    img2: "",
     img3: "",
+    img4: "",
+    img5: "",
+    img6: "",
   });
 
   const [categories, setCategories] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [load, setload] = useState(false);
 
-  // 🔹 Load categories and product if editing
+  // load categories & product (if edit)
   useEffect(() => {
     setCategories(["Rods", "Reels", "Hooks", "Lures", "Lines", "Accessories"]);
 
-    if (isEdit) {
+    if (isEdit && id) {
       const fetchProduct = async () => {
         try {
           setLoading(true);
@@ -45,16 +74,20 @@ const ProductForm = () => {
           if (res.status === 200 && res.data.fishingTool) {
             const p = res.data.fishingTool;
             setFormData({
-              ProductName: p.ProductName || "",
-              SKU: p.SKU || "",
-              Description: p.Description || "",
-              Specifications: p.Specifications || "",
-              Price: p.Price?.toString() || "",
-              CompareatPrice: p.CompareatPrice?.toString() || "",
-              Weight: p.Weight?.toString() || "",
-              Category: p.Category || "",
-              StockQuantity: p.StockQuantity?.toString() || "",
-              img3: p.img3 || "",
+              ProductName: p.ProductName ?? "",
+              SKU: p.SKU ?? "",
+              Description: p.Description ?? "",
+              Specifications: p.Specifications ?? "",
+              Price: p.Price?.toString() ?? "",
+              CompareatPrice: p.CompareatPrice?.toString() ?? "",
+              Weight: p.Weight?.toString() ?? "",
+              Category: p.Category ?? "",
+              StockQuantity: p.StockQuantity?.toString() ?? "",
+              img2: p.img2 ?? "",
+              img3: p.img3 ?? "",
+              img4: p.img4 ?? "",
+              img5: p.img5 ?? "",
+              img6: p.img6 ?? "",
             });
           } else {
             toast.error("Product not found");
@@ -72,8 +105,11 @@ const ProductForm = () => {
     }
   }, [id, isEdit, navigate]);
 
-  // 🔹 Upload Image to Cloudinary
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload image to Cloudinary, set specific field (img2..img6)
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: keyof FormState = "img3"
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -87,54 +123,95 @@ const ProductForm = () => {
         "https://api.cloudinary.com/v1_1/dbq5gkepx/image/upload",
         cloudForm
       );
-      setFormData((prev) => ({ ...prev, img3: res.data.secure_url }));
+      const url = res.data.secure_url;
+      setFormData((prev) => ({ ...prev, [field]: url } as FormState));
       toast.success("Image uploaded successfully!");
     } catch (err) {
-      console.error(err);
+      console.error("Upload error:", err);
       toast.error("Image upload failed");
     } finally {
       setUploading(false);
     }
   };
 
-  // 🔹 Submit Form (Add or Update)
+  // Remove image from a given field
+  const removeImage = (field: keyof FormState) => {
+    setFormData((prev) => ({ ...prev, [field]: "" } as FormState));
+    toast.success("Image removed");
+  };
+
+  // Set a given image as the main one (img3)
+  const setAsMain = (url: string) => {
+    setFormData((prev) => ({ ...prev, img3: url } as FormState));
+    toast.success("Set as main image");
+  };
+
+  // Submit handler (add or update)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
+      setload(true);
+
+      // Ensure main image exists: fallback to first non-empty image if img3 empty
+      const images = [formData.img3, formData.img2, formData.img4, formData.img5, formData.img6];
+      let main = formData.img3;
+      if (!main || main.trim() === "") {
+        const first = images.find((i) => i && i.trim() !== "");
+        main = first ?? "";
+      }
+
       const payload = {
         ProductName: formData.ProductName,
         SKU: formData.SKU,
         Description: formData.Description,
         Specifications: formData.Specifications,
-        Price: parseFloat(formData.Price),
-        CompareatPrice: parseFloat(formData.CompareatPrice),
-        Weight: parseFloat(formData.Weight),
+        Price: parseFloat(formData.Price) || 0,
+        CompareatPrice: parseFloat(formData.CompareatPrice) || 0,
+        Weight: parseFloat(formData.Weight) || 0,
         Category: formData.Category,
-        StockQuantity: parseInt(formData.StockQuantity),
-        img3: formData.img3,
+        StockQuantity: parseInt(formData.StockQuantity || "0", 10),
+        img2: formData.img2,
+        img3: main,
+        img4: formData.img4,
+        img5: formData.img5,
+        img6: formData.img6,
       };
 
-      if (isEdit) {
+      if (isEdit && id) {
         const res = await axios.put(`https://realdealbackend.onrender.com/add/${id}`, payload);
         if (res.status === 200) {
           toast.success("Product updated successfully!");
           navigate("/admin/products");
+        } else {
+          toast.error("Failed to update product");
         }
       } else {
         const res = await axios.post("https://realdealbackend.onrender.com/add", payload);
         if (res.status === 201) {
           toast.success("Product added successfully!");
           navigate("/admin/products");
+        } else {
+          toast.error("Failed to add product");
         }
       }
     } catch (error: any) {
       console.error(error);
-      toast.error(error.response?.data?.message || "Failed to save product");
+      toast.error(error?.response?.data?.message || "Failed to save product");
+    } finally {
+      setload(false);
     }
   };
 
   if (loading) return <div className="p-6 text-center">Loading product data...</div>;
+
+  // convenience list for UI
+  const gallery = [
+    { key: "img2", url: formData.img2 },
+    { key: "img3", url: formData.img3 }, // main
+    { key: "img4", url: formData.img4 },
+    { key: "img5", url: formData.img5 },
+    { key: "img6", url: formData.img6 },
+  ] as { key: keyof FormState; url: string }[];
 
   return (
     <AdminLayout>
@@ -149,9 +226,7 @@ const ProductForm = () => {
               {isEdit ? "Edit Product" : "Add New Fishing Tool"}
             </h1>
             <p className="text-muted-foreground">
-              {isEdit
-                ? "Update fishing tool details below"
-                : "Fill in the fishing tool details below"}
+              {isEdit ? "Update fishing tool details below" : "Fill in the fishing tool details below"}
             </p>
           </div>
         </div>
@@ -161,8 +236,9 @@ const ProductForm = () => {
             <CardHeader>
               <CardTitle>Fishing Tool Information</CardTitle>
             </CardHeader>
+
             <CardContent className="space-y-6">
-              {/* Product Info */}
+              {/* basic fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label>Product Name *</Label>
@@ -172,6 +248,7 @@ const ProductForm = () => {
                     required
                   />
                 </div>
+
                 <div>
                   <Label>SKU *</Label>
                   <Input
@@ -198,11 +275,9 @@ const ProductForm = () => {
                   rows={3}
                   value={formData.Specifications}
                   onChange={(e) => setFormData({ ...formData, Specifications: e.target.value })}
-                  required
                 />
               </div>
 
-              {/* Price / Weight */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <Label>Price *</Label>
@@ -214,29 +289,28 @@ const ProductForm = () => {
                     required
                   />
                 </div>
-                <div>
-                  <Label>Compare at Price *</Label>
+
+                <div style={{ display: "none" }}>
+                  <Label>Compare at Price</Label>
                   <Input
                     type="number"
                     step="0.01"
                     value={formData.CompareatPrice}
                     onChange={(e) => setFormData({ ...formData, CompareatPrice: e.target.value })}
-                    required
                   />
                 </div>
+
                 <div>
-                  <Label>Weight (oz) *</Label>
+                  <Label>Weight (oz)</Label>
                   <Input
                     type="number"
                     step="0.1"
                     value={formData.Weight}
                     onChange={(e) => setFormData({ ...formData, Weight: e.target.value })}
-                    required
                   />
                 </div>
               </div>
 
-              {/* Category / Stock */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <Label>Category *</Label>
@@ -256,53 +330,163 @@ const ProductForm = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div>
                   <Label>Stock Quantity *</Label>
                   <Input
                     type="number"
                     value={formData.StockQuantity}
-                    onChange={(e) =>
-                      setFormData({ ...formData, StockQuantity: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, StockQuantity: e.target.value })}
                     required
                   />
                 </div>
               </div>
 
-              {/* Image */}
+              {/* IMAGE UPLOADS - 5 images */}
               <div>
-                <Label>Product Image *</Label>
-                <div className="flex items-center gap-4">
-                  <Input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
-                  {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
-                  {formData.img3 && (
-                    <img
-                      src={formData.img3}
-                      alt="Preview"
-                      className="w-20 h-20 object-cover rounded border"
-                    />
-                  )}
+                <Label className="mb-2">Product Images (img2 - img6)</Label>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* file inputs for each image field */}
+                  <div>
+                    <Label>Image (img2)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, "img2")}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
+                      {formData.img2 && (
+                        <img src={formData.img2} alt="img2" className="w-20 h-20 object-cover rounded border" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Image (img3) — Main image</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, "img3")}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
+                      {formData.img3 && (
+                        <img src={formData.img3} alt="img3" className="w-20 h-20 object-cover rounded border" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Image (img4)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, "img4")}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
+                      {formData.img4 && (
+                        <img src={formData.img4} alt="img4" className="w-20 h-20 object-cover rounded border" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Image (img5)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, "img5")}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
+                      {formData.img5 && (
+                        <img src={formData.img5} alt="img5" className="w-20 h-20 object-cover rounded border" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Image (img6)</Label>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, "img6")}
+                        disabled={uploading}
+                      />
+                      {uploading && <p className="text-sm text-muted-foreground">Uploading...</p>}
+                      {formData.img6 && (
+                        <img src={formData.img6} alt="img6" className="w-20 h-20 object-cover rounded border" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* gallery preview + controls */}
+                <div className="mt-4">
+                  <Label>Gallery Preview</Label>
+                  <div className="flex gap-3 mt-2 flex-wrap">
+                    {gallery.map((g) =>
+                      g.url ? (
+                        <div key={g.key} className="flex flex-col items-center gap-2">
+                          <div
+                            className={`w-28 h-28 border rounded overflow-hidden relative ${formData.img3 === g.url ? "ring-2 ring-sky-500" : ""
+                              }`}
+                          >
+                            <img src={g.url} alt={String(g.key)} className="w-full h-full object-cover" />
+                            {formData.img3 === g.url && (
+                              <div className="absolute top-1 left-1 bg-sky-600 text-white text-xs px-2 py-0.5 rounded">
+                                Main
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={() => setAsMain(g.url)}>
+                              <Check className="w-4 h-4 mr-1" /> Set main
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => removeImage(g.key)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          key={g.key}
+                          className="w-28 h-28 border rounded flex items-center justify-center text-sm text-muted-foreground"
+                        >
+                          {String(g.key)} empty
+                        </div>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Submit */}
+              {/* submit */}
               <div className="flex gap-4 pt-4">
-                <Button type="submit" className="flex-1" disabled={uploading}>
+                <Button type="submit" className="flex-1" disabled={uploading || load}>
                   {uploading ? (
                     <>
                       <Upload className="w-4 h-4 mr-2 animate-spin" /> Uploading...
                     </>
+                  ) : load ? (
+                    "Saving..."
                   ) : isEdit ? (
                     "Update Product"
                   ) : (
                     "Add Fishing Tool"
                   )}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate("/admin/products")}
-                >
+
+                <Button type="button" variant="outline" onClick={() => navigate("/admin/products")}>
                   Cancel
                 </Button>
               </div>
@@ -315,7 +499,6 @@ const ProductForm = () => {
 };
 
 export default ProductForm;
-
 
 
 
